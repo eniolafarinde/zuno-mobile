@@ -1,17 +1,19 @@
-import express from "express";
-import dotenv from "dotenv";
+import "dotenv/config";
 import { connectDB } from "./config/db";
+import { createApp } from "./app";
 
-dotenv.config();
+async function start() {
+  await connectDB();
 
-const app = express();
+  const app = createApp();
 
-connectDB();
+  const port = Number(process.env.PORT) || 4000;
+  app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+  });
+}
 
-app.get("/", (req, res) => {
-  res.send("Zuno API running");
-});
-
-app.listen(process.env.PORT || 4000, () => {
-  console.log(`Server running on port ${process.env.PORT || 4000}`);
+start().catch((err) => {
+  console.error("Failed to start server:", err);
+  process.exit(1);
 });
