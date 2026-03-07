@@ -1,36 +1,84 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, Button, Alert } from "react-native";
-import { useAuth } from "../auth/AuthContext";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
+import AuthLayout from "../components/AuthLayout";
 
-export default function Register({ navigation }: any) {
-  const { signUp } = useAuth();
-  const [name, setName] = useState("Test User");
-  const [email, setEmail] = useState("test2@zuno.app");
-  const [password, setPassword] = useState("Password123");
-
-  async function onSubmit() {
-    try {
-      await signUp(email.trim().toLowerCase(), password, name);
-    } catch (e: any) {
-      Alert.alert("Sign up failed", e?.response?.data?.message || "Try again");
-    }
-  }
+export default function Register() {
+  const [step] = useState(1);
 
   return (
-    <View style={{ padding: 16, gap: 12 }}>
-      <Text style={{ fontSize: 22, fontWeight: "700" }}>Create account</Text>
+    <AuthLayout>
 
-      <Text>Name</Text>
-      <TextInput value={name} onChangeText={setName} style={{ borderWidth: 1, padding: 10, borderRadius: 8 }} />
+      <Text style={styles.title}>Sign up</Text>
+      <Text style={styles.subtitle}>Let's keep it quick, just 2 steps</Text>
 
-      <Text>Email</Text>
-      <TextInput autoCapitalize="none" value={email} onChangeText={setEmail} style={{ borderWidth: 1, padding: 10, borderRadius: 8 }} />
+      {/* progress bar */}
 
-      <Text>Password</Text>
-      <TextInput secureTextEntry value={password} onChangeText={setPassword} style={{ borderWidth: 1, padding: 10, borderRadius: 8 }} />
+      <View style={styles.progressTrack}>
+        <View style={[styles.progressFill, { width: step === 1 ? "50%" : "100%" }]} />
+      </View>
 
-      <Button title="Create" onPress={onSubmit} />
-      <Button title="Back to login" onPress={() => navigation.goBack()} />
-    </View>
+      <Text style={styles.label}>Email Address</Text>
+      <TextInput style={styles.input} placeholder="example@email.com" />
+
+      <Text style={styles.label}>Password</Text>
+      <TextInput style={styles.input} secureTextEntry />
+
+      <TouchableOpacity style={styles.button}>
+        <Text style={styles.buttonText}>Sign up</Text>
+      </TouchableOpacity>
+
+    </AuthLayout>
   );
 }
+
+const styles = StyleSheet.create({
+  title: {
+    fontSize: 32,
+    fontWeight: "700"
+  },
+
+  subtitle: {
+    color: "#6B7280",
+    marginBottom: 20
+  },
+
+  progressTrack: {
+    height: 4,
+    backgroundColor: "#E5E7EB",
+    borderRadius: 2,
+    marginBottom: 30
+  },
+
+  progressFill: {
+    height: 4,
+    backgroundColor: "#000000",
+    borderRadius: 2
+  },
+
+  label: {
+    marginBottom: 6,
+    fontWeight: "500"
+  },
+
+  input: {
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    padding: 14,
+    borderRadius: 10,
+    marginBottom: 18
+  },
+
+  button: {
+    backgroundColor: "#000000",
+    padding: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    marginTop: 10
+  },
+
+  buttonText: {
+    color: "#FFFFFF",
+    fontWeight: "600",
+    fontSize: 16
+  }
+});

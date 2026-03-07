@@ -1,39 +1,95 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, Button, Alert } from "react-native";
-import { useAuth } from "../auth/AuthContext";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
+import AuthLayout from "../components/AuthLayout";
 
 export default function Login({ navigation }: any) {
-  const { signIn } = useAuth();
-  const [email, setEmail] = useState("test@zuno.app");
-  const [password, setPassword] = useState("Password123");
-
-  async function onSubmit() {
-    try {
-      await signIn(email.trim().toLowerCase(), password);
-    } catch (e: any) {
-      Alert.alert("Login failed", e?.response?.data?.message || "Try again");
-    }
-  }
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   return (
-    <View style={{ padding: 16, gap: 12 }}>
-      <Text style={{ fontSize: 28, fontWeight: "700" }}>Zuno</Text>
-      <Text>Email</Text>
+    <AuthLayout>
+
+      <Text style={styles.title}>Login</Text>
+      <Text style={styles.subtitle}>Please login to your account</Text>
+
+      <Text style={styles.label}>E-mail Address</Text>
       <TextInput
-        autoCapitalize="none"
+        style={styles.input}
+        placeholder="example@email.com"
         value={email}
         onChangeText={setEmail}
-        style={{ borderWidth: 1, padding: 10, borderRadius: 8 }}
       />
-      <Text>Password</Text>
+
+      <Text style={styles.label}>Password</Text>
       <TextInput
+        style={styles.input}
         secureTextEntry
         value={password}
         onChangeText={setPassword}
-        style={{ borderWidth: 1, padding: 10, borderRadius: 8 }}
       />
-      <Button title="Login" onPress={onSubmit} />
-      <Button title="Create account" onPress={() => navigation.navigate("Register")} />
-    </View>
+
+      <TouchableOpacity style={styles.button}>
+        <Text style={styles.buttonText}>Login</Text>
+      </TouchableOpacity>
+
+      <Text style={styles.footer}>
+        Don't have an account?{" "}
+        <Text style={styles.link} onPress={() => navigation.navigate("Register")}>
+          Sign up
+        </Text>
+      </Text>
+
+    </AuthLayout>
   );
 }
+
+const styles = StyleSheet.create({
+  title: {
+    fontSize: 32,
+    fontWeight: "700",
+    marginBottom: 6
+  },
+
+  subtitle: {
+    color: "#6B7280",
+    marginBottom: 32
+  },
+
+  label: {
+    marginBottom: 6,
+    fontWeight: "500"
+  },
+
+  input: {
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    padding: 14,
+    borderRadius: 10,
+    marginBottom: 18
+  },
+
+  button: {
+    backgroundColor: "#000000",
+    padding: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    marginTop: 10
+  },
+
+  buttonText: {
+    color: "#FFFFFF",
+    fontWeight: "600",
+    fontSize: 16
+  },
+
+  footer: {
+    textAlign: "center",
+    marginTop: 30,
+    color: "#6B7280"
+  },
+
+  link: {
+    color: "#000000",
+    fontWeight: "600"
+  }
+});

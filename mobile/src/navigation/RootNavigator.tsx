@@ -3,8 +3,6 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { useAuth } from "../auth/AuthContext";
-
-// Screens (create these files)
 import Login from "../screens/Login";
 import Register from "../screens/Register";
 import Onboarding from "../screens/Onboarding";
