@@ -9,6 +9,7 @@ import Register from "../screens/Register";
 import Onboarding, { AllSetScreen } from "../screens/Onboarding";
 import Home from "../screens/Home";
 import Settings from "../screens/Settings";
+import Tasks from "../screens/Tasks";
 
 
 const Stack = createNativeStackNavigator();
@@ -18,6 +19,7 @@ function AppTabs() {
   return (
     <Tabs.Navigator screenOptions={{ headerShown: false }}>
       <Tabs.Screen name="Home" component={Home} />
+      <Tabs.Screen name="Tasks" component={Tasks} />
       <Tabs.Screen name="Settings" component={Settings} />
     </Tabs.Navigator>
   );
