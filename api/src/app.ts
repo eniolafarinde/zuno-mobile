@@ -3,6 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 import authRoutes from "./routes/auth.routes";
 import userRoutes from "./routes/user.routes";
+import taskRoutes from "./routes/task.routes";
 
 export function createApp() {
   const app = express();
@@ -15,6 +16,7 @@ export function createApp() {
 
   app.use("/auth", authRoutes);
   app.use("/", userRoutes);
+  app.use("/", taskRoutes);
 
   // fallback
   app.use((_req, res) => res.status(404).json({ message: "Not found" }));
