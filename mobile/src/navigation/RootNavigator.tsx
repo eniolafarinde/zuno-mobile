@@ -3,9 +3,10 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { useAuth } from "../auth/AuthContext";
+import Splash from "../screens/Splash";
 import Login from "../screens/Login";
 import Register from "../screens/Register";
-import Onboarding from "../screens/Onboarding";
+import Onboarding, { AllSetScreen } from "../screens/Onboarding";
 import Home from "../screens/Home";
 import Settings from "../screens/Settings";
 
@@ -15,32 +16,41 @@ const Tabs = createBottomTabNavigator();
 
 function AppTabs() {
   return (
-    <Tabs.Navigator>
+    <Tabs.Navigator screenOptions={{ headerShown: false }}>
       <Tabs.Screen name="Home" component={Home} />
       <Tabs.Screen name="Settings" component={Settings} />
     </Tabs.Navigator>
+  );
+}
+function AuthStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Onboarding" component={Onboarding} />
+      <Stack.Screen name="Login" component={Login} />
+      <Stack.Screen name="Register" component={Register} />
+      <Stack.Screen name="AllSet" component={AllSetScreen} />
+    </Stack.Navigator>
   );
 }
 
 export default function RootNavigator() {
   const { state } = useAuth();
 
+  if (state.status === "loading") {
+    return <Splash />;
+  }
+
   return (
     <NavigationContainer>
-      {state.status === "loading" ? (
-        <Stack.Navigator>
-          <Stack.Screen name="Loading" component={() => null} />
-        </Stack.Navigator>
-      ) : state.status === "signedOut" ? (
-        <Stack.Navigator>
-          <Stack.Screen name="Login" component={Login} />
-          <Stack.Screen name="Register" component={Register} />
-        </Stack.Navigator>
+      {state.status === "signedOut" ? (
+        <AuthStack />
       ) : state.user.onboardingComplete ? (
         <AppTabs />
       ) : (
-        <Stack.Navigator>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
           <Stack.Screen name="Onboarding" component={Onboarding} />
+          <Stack.Screen name="Register" component={Register} />
+          <Stack.Screen name="AllSet" component={AllSetScreen} />
         </Stack.Navigator>
       )}
     </NavigationContainer>

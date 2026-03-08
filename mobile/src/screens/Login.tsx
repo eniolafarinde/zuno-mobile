@@ -1,10 +1,20 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import AuthLayout from "../components/AuthLayout";
+import { useAuth } from "../auth/AuthContext";
 
 export default function Login({ navigation }: any) {
+  const { signIn } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
+  async function onSubmit() {
+    try {
+      await signIn(email.trim().toLowerCase(), password);
+    } catch (e: any) {
+      Alert.alert("Login failed", e?.response?.data?.message || "Try again");
+    }
+  }
 
   return (
     <AuthLayout>
@@ -28,7 +38,7 @@ export default function Login({ navigation }: any) {
         onChangeText={setPassword}
       />
 
-      <TouchableOpacity style={styles.button}>
+      <TouchableOpacity style={styles.button} onPress={onSubmit}>
         <Text style={styles.buttonText}>Login</Text>
       </TouchableOpacity>
 
@@ -47,17 +57,22 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: "700",
-    marginBottom: 6
+    marginBottom: 6,
+    textAlign: "center",
+    fontFamily: "Itim_400Regular"
   },
 
   subtitle: {
     color: "#6B7280",
-    marginBottom: 32
+    marginBottom: 32,
+    textAlign: "center",
+    fontFamily: "Itim_400Regular"
   },
 
   label: {
     marginBottom: 6,
-    fontWeight: "500"
+    fontWeight: "500",
+    fontFamily: "Itim_400Regular"
   },
 
   input: {
@@ -65,13 +80,14 @@ const styles = StyleSheet.create({
     borderColor: "#E5E7EB",
     padding: 14,
     borderRadius: 10,
-    marginBottom: 18
+    marginBottom: 18,
+    fontFamily: "Itim_400Regular"
   },
 
   button: {
     backgroundColor: "#000000",
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 40,
     alignItems: "center",
     marginTop: 10
   },
@@ -79,17 +95,20 @@ const styles = StyleSheet.create({
   buttonText: {
     color: "#FFFFFF",
     fontWeight: "600",
-    fontSize: 16
+    fontSize: 16,
+    fontFamily: "Itim_400Regular"
   },
 
   footer: {
     textAlign: "center",
     marginTop: 30,
-    color: "#6B7280"
+    color: "#6B7280",
+    fontFamily: "Itim_400Regular" 
   },
 
   link: {
     color: "#000000",
-    fontWeight: "600"
+    fontWeight: "600",
+    fontFamily: "Itim_400Regular"
   }
 });

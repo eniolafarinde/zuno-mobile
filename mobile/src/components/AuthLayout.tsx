@@ -10,6 +10,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
     paddingHorizontal: 24,
-    paddingTop: 80
+    paddingTop: 80,
+    justifyContent: "center"
   }
 });
