@@ -8,8 +8,11 @@ import {
   ScrollView,
   AppState,
   AppStateStatus,
+  Modal,
+  Pressable,
 } from "react-native";
 import Svg, { Circle, Defs, ClipPath, Rect, G, Path } from "react-native-svg";
+import { Feather } from "@expo/vector-icons";
 
 type PomodoroMode = "focus" | "break" | "longBreak";
 type SceneOption = "minimal" | "forest" | "ocean";
@@ -34,6 +37,7 @@ export default function Pomodoro() {
   const [scene, setScene] = useState<SceneOption>("minimal");
   const [sound, setSound] = useState<SoundOption>("chimes");
   const [focusMinutes, setFocusMinutes] = useState(25);
+  const [menuVisible, setMenuVisible] = useState(false);
 
   const targetTimestampRef = useRef<number | null>(null);
   const appState = useRef<AppStateStatus>(AppState.currentState);
@@ -54,8 +58,6 @@ export default function Pomodoro() {
     const remainingRatio = remainingSeconds / totalSeconds;
     return Math.max(0, Math.min(1, remainingRatio));
   }, [remainingSeconds, totalSeconds]);
-
-  const dashOffset = CIRCUMFERENCE * (1 - ringProgress);
 
   const scenePalette = useMemo(() => {
     switch (scene) {
@@ -202,10 +204,49 @@ export default function Pomodoro() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: scenePalette.pageBg }]}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <Text style={[styles.heading, { color: scenePalette.primary }]}>Pomodoro</Text>
-        <Text style={[styles.subheading, { color: scenePalette.secondary }]}>
-          Pick a calming style, set your focus time, and settle into your session.
-        </Text>
+        <View style={styles.topRow}>
+          <View>
+            <Text style={[styles.heading, { color: scenePalette.primary }]}>Pomodoro</Text>
+            <Text style={[styles.subheading, { color: scenePalette.secondary }]}>
+              Stay present and ease into focus.
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.menuButton, { borderColor: scenePalette.chipBorder }]}
+            onPress={() => setMenuVisible(true)}
+          >
+            <Feather name="more-horizontal" size={22} color={scenePalette.primary} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.modeWrap}>
+          {(["focus", "break", "longBreak"] as PomodoroMode[]).map((value) => {
+            const active = mode === value;
+            return (
+              <TouchableOpacity
+                key={value}
+                style={[
+                  styles.modeChip,
+                  {
+                    backgroundColor: active ? scenePalette.activeBg : scenePalette.chipBg,
+                    borderColor: active ? scenePalette.activeBg : scenePalette.chipBorder,
+                  },
+                ]}
+                onPress={() => setMode(value)}
+              >
+                <Text
+                  style={[
+                    styles.modeChipText,
+                    { color: active ? scenePalette.activeText : scenePalette.primary },
+                  ]}
+                >
+                  {modeLabel(value)}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
         <View
           style={[
@@ -262,138 +303,107 @@ export default function Pomodoro() {
             </TouchableOpacity>
           </View>
         </View>
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: scenePalette.primary }]}>Mode</Text>
-          <View style={styles.chipRow}>
-            {(["focus", "break", "longBreak"] as PomodoroMode[]).map((value) => {
-              const active = mode === value;
-              return (
-                <TouchableOpacity
-                  key={value}
-                  style={[
-                    styles.pillChip,
-                    {
-                      backgroundColor: active ? scenePalette.activeBg : scenePalette.chipBg,
-                      borderColor: active ? scenePalette.activeBg : scenePalette.chipBorder,
-                    },
-                  ]}
-                  onPress={() => setMode(value)}
-                >
-                  <Text
-                    style={[
-                      styles.pillChipText,
-                      { color: active ? scenePalette.activeText : scenePalette.primary },
-                    ]}
-                  >
-                    {modeLabel(value)}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: scenePalette.primary }]}>Focus length</Text>
-          <View style={styles.chipRow}>
-            {FOCUS_PRESETS.map((value) => {
-              const active = focusMinutes === value;
-              return (
-                <TouchableOpacity
-                  key={value}
-                  style={[
-                    styles.pillChip,
-                    {
-                      backgroundColor: active ? scenePalette.activeBg : scenePalette.chipBg,
-                      borderColor: active ? scenePalette.activeBg : scenePalette.chipBorder,
-                    },
-                  ]}
-                  onPress={() => selectFocusMinutes(value)}
-                >
-                  <Text
-                    style={[
-                      styles.pillChipText,
-                      { color: active ? scenePalette.activeText : scenePalette.primary },
-                    ]}
-                  >
-                    {value} min
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: scenePalette.primary }]}>Theme</Text>
-          <View style={styles.chipRow}>
-            {(["minimal", "forest", "ocean"] as SceneOption[]).map((value) => {
-              const active = scene === value;
-              return (
-                <TouchableOpacity
-                  key={value}
-                  style={[
-                    styles.pillChip,
-                    {
-                      backgroundColor: active ? scenePalette.activeBg : scenePalette.chipBg,
-                      borderColor: active ? scenePalette.activeBg : scenePalette.chipBorder,
-                    },
-                  ]}
-                  onPress={() => setScene(value)}
-                >
-                  <Text
-                    style={[
-                      styles.pillChipText,
-                      { color: active ? scenePalette.activeText : scenePalette.primary },
-                    ]}
-                  >
-                    {capitalize(value)}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: scenePalette.primary }]}>Soundscape</Text>
-          <Text style={[styles.sectionDescription, { color: scenePalette.secondary }]}>
-            Pick a subtle sound to support your focus session.
-          </Text>
-          <View style={styles.chipRow}>
-            {(["none", "chimes", "rain"] as SoundOption[]).map((option) => {
-              const active = sound === option;
-              return (
-                <TouchableOpacity
-                  key={option}
-                  style={[
-                    styles.pillChip,
-                    {
-                      backgroundColor: active ? scenePalette.activeBg : scenePalette.chipBg,
-                      borderColor: active ? scenePalette.activeBg : scenePalette.chipBorder,
-                    },
-                  ]}
-                  onPress={() => setSound(option)}
-                >
-                  <Text
-                    style={[
-                      styles.pillChipText,
-                      { color: active ? scenePalette.activeText : scenePalette.primary },
-                    ]}
-                  >
-                    {option === "none"
-                      ? "No sound"
-                      : option === "chimes"
-                      ? "Soft chimes"
-                      : "Rain"}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
       </ScrollView>
+
+      <Modal visible={menuVisible} transparent animationType="fade">
+        <Pressable style={styles.modalOverlay} onPress={() => setMenuVisible(false)}>
+          <Pressable
+            style={[styles.menuSheet, { backgroundColor: "#FFFFFF", borderColor: "#EAEAEA" }]}
+            onPress={() => {}}
+          >
+            <Text style={styles.menuTitle}>Session settings</Text>
+
+            <Text style={styles.menuSectionTitle}>Theme</Text>
+            <View style={styles.menuChipRow}>
+              {(["minimal", "forest", "ocean"] as SceneOption[]).map((value) => {
+                const active = scene === value;
+                return (
+                  <TouchableOpacity
+                    key={value}
+                    style={[
+                      styles.menuChip,
+                      active && styles.menuChipActive,
+                    ]}
+                    onPress={() => setScene(value)}
+                  >
+                    <Text
+                      style={[
+                        styles.menuChipText,
+                        active && styles.menuChipTextActive,
+                      ]}
+                    >
+                      {capitalize(value)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={styles.menuSectionTitle}>Sound</Text>
+            <View style={styles.menuChipRow}>
+              {(["none", "chimes", "rain"] as SoundOption[]).map((option) => {
+                const active = sound === option;
+                return (
+                  <TouchableOpacity
+                    key={option}
+                    style={[
+                      styles.menuChip,
+                      active && styles.menuChipActive,
+                    ]}
+                    onPress={() => setSound(option)}
+                  >
+                    <Text
+                      style={[
+                        styles.menuChipText,
+                        active && styles.menuChipTextActive,
+                      ]}
+                    >
+                      {option === "none"
+                        ? "No sound"
+                        : option === "chimes"
+                        ? "Soft chimes"
+                        : "Rain"}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={styles.menuSectionTitle}>Focus length</Text>
+            <View style={styles.menuChipRow}>
+              {FOCUS_PRESETS.map((value) => {
+                const active = focusMinutes === value;
+                return (
+                  <TouchableOpacity
+                    key={value}
+                    style={[
+                      styles.menuChip,
+                      active && styles.menuChipActive,
+                    ]}
+                    onPress={() => selectFocusMinutes(value)}
+                  >
+                    <Text
+                      style={[
+                        styles.menuChipText,
+                        active && styles.menuChipTextActive,
+                      ]}
+                    >
+                      {value} min
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <TouchableOpacity
+              style={styles.doneButton}
+              onPress={() => setMenuVisible(false)}
+            >
+              <Text style={styles.doneButtonText}>Done</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -489,7 +499,6 @@ function OceanTimer({
   time: string;
   label: string;
 }) {
-  const circleSize = 240;
   const circleRadius = 95;
   const waterTop = 40 + (1 - progress) * 150;
 
@@ -498,7 +507,7 @@ function OceanTimer({
       <Text style={styles.visualLabelOcean}>{label}</Text>
       <Text style={styles.visualTimeOcean}>{time}</Text>
 
-      <Svg width={circleSize} height={circleSize} viewBox="0 0 240 240">
+      <Svg width={240} height={240} viewBox="0 0 240 240">
         <Defs>
           <ClipPath id="oceanClip">
             <Circle cx="120" cy="120" r={circleRadius} />
@@ -527,7 +536,7 @@ function OceanTimer({
 function modeLabel(mode: PomodoroMode) {
   if (mode === "focus") return "Focus";
   if (mode === "break") return "Break";
-  return "Long Break";
+  return "Long break";
 }
 
 function capitalize(value: string) {
@@ -543,15 +552,47 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 40,
   },
+  topRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 18,
+  },
   heading: {
-    fontSize: 34,
-    fontFamily: "Itim_400Regular",
+    fontSize: 30,
     marginBottom: 6,
+    fontWeight: "700",
   },
   subheading: {
     fontSize: 15,
     lineHeight: 22,
-    marginBottom: 20,
+    maxWidth: 280,
+  },
+  menuButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  modeWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 16,
+    justifyContent: "center",
+  },
+  modeChip: {
+    borderRadius: 999,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+  },
+  modeChipText: {
+    fontSize: 14,
+    fontWeight: "600",
   },
   heroCard: {
     minHeight: 470,
@@ -659,21 +700,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 10,
   },
-  chipRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  pillChip: {
-    borderRadius: 999,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-  },
-  pillChipText: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
   widgetHint: {
     borderRadius: 22,
     padding: 18,
@@ -687,5 +713,70 @@ const styles = StyleSheet.create({
   widgetText: {
     fontSize: 14,
     lineHeight: 21,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.18)",
+    justifyContent: "flex-start",
+    alignItems: "flex-end",
+    paddingTop: 90,
+    paddingRight: 20,
+  },
+  menuSheet: {
+    width: 290,
+    borderRadius: 22,
+    borderWidth: 1,
+    padding: 18,
+  },
+  menuTitle: {
+    fontSize: 20,
+    color: "#000000",
+    marginBottom: 14,
+    fontWeight: "600",
+  },
+  menuSectionTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#000000",
+    marginBottom: 8,
+    marginTop: 6,
+  },
+  menuChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 10,
+  },
+  menuChip: {
+    borderRadius: 999,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: "#E5E5E5",
+    backgroundColor: "#FFFFFF",
+  },
+  menuChipActive: {
+    backgroundColor: "#000000",
+    borderColor: "#000000",
+  },
+  menuChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#000000",
+  },
+  menuChipTextActive: {
+    color: "#FFFFFF",
+  },
+  doneButton: {
+    marginTop: 8,
+    backgroundColor: "#000000",
+    borderRadius: 999,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  doneButtonText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
   },
 });
