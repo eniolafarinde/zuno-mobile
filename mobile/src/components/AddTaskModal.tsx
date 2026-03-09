@@ -153,9 +153,8 @@ const styles = StyleSheet.create({
     paddingBottom: 36,
   },
   titleInput: {
-    fontSize: 28,
+    fontSize: 20,
     color: "#000000",
-    fontFamily: "Itim_400Regular",
     marginBottom: 14,
   },
   descriptionInput: {
@@ -216,7 +215,6 @@ const styles = StyleSheet.create({
   },
   createButtonText: {
     color: "#FFFFFF",
-    fontSize: 16,
-    fontFamily: "Itim_400Regular",
+    fontSize: 14,
   },
 });
