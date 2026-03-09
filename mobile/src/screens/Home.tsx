@@ -1,7 +1,10 @@
 import React from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import PomodoroWidget from "../components/PomodoroWidget";
 
 export default function Home() {
+  const navigation = useNavigation<any>();
   const today = new Date().toLocaleDateString(undefined, {
     weekday: "long",
     month: "long",
@@ -25,10 +28,20 @@ export default function Home() {
         <Text style={styles.sessionTime}>{nextSession.time}</Text>
         <Text style={styles.sessionDuration}>{nextSession.duration}</Text>
 
-        <TouchableOpacity style={styles.primaryButton}>
+        <TouchableOpacity
+          style={styles.primaryButton}
+          onPress={() => navigation.navigate("Pomodoro")}
+        >
           <Text style={styles.primaryButtonText}>Start Focus Session</Text>
         </TouchableOpacity>
       </View>
+
+      <PomodoroWidget
+        label="Quick Pomodoro"
+        remainingSeconds={25 * 60}
+        isRunning={false}
+        onPress={() => navigation.navigate("Pomodoro")}
+      />
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Today’s Overview</Text>

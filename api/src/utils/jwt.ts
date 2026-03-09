@@ -1,8 +1,11 @@
-import jwt from "jsonwebtoken";
+import jwt, { SignOptions } from "jsonwebtoken";
 
 export function signAccessToken(payload: object) {
   const secret = process.env.JWT_SECRET!;
-  const expiresIn = process.env.JWT_EXPIRES_IN || "7d";
+  const expiresIn: Exclude<SignOptions["expiresIn"], undefined> =
+    (process.env.JWT_EXPIRES_IN as Exclude<SignOptions["expiresIn"], undefined>) ??
+    ("7d" as Exclude<SignOptions["expiresIn"], undefined>);
+
   return jwt.sign(payload, secret, { expiresIn });
 }
 
