@@ -35,4 +35,53 @@ router.put("/me/onboarding", requireAuth, async (req: AuthedRequest, res) => {
   return res.json({ user });
 });
 
+const pomodoroPreferencesSchema = z.object({
+  focusMin: z.number().int().min(1).max(180).optional(),
+  breakMin: z.number().int().min(1).max(60).optional(),
+  longBreakMin: z.number().int().min(1).max(60).optional(),
+  cyclesBeforeLongBreak: z.number().int().min(1).max(10).optional()
+});
+
+router.get("/me/pomodoro", requireAuth, async (req: AuthedRequest, res) => {
+  const user = await User.findById(req.user!.userId).select("preferences.pomodoro");
+  if (!user) return res.status(404).json({ message: "User not found" });
+
+  return res.json({
+    pomodoro: user.preferences?.pomodoro ?? {
+      focusMin: 25,
+      breakMin: 5,
+      longBreakMin: 15,
+      cyclesBeforeLongBreak: 4
+    }
+  });
+});
+
+router.put("/me/pomodoro", requireAuth, async (req: AuthedRequest, res) => {
+  const parsed = pomodoroPreferencesSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      message: "Invalid pomodoro preferences",
+      errors: parsed.error.flatten()
+    });
+  }
+
+  const data = parsed.data;
+  const updates: Record<string, unknown> = {};
+
+  if (data.focusMin !== undefined) updates["preferences.pomodoro.focusMin"] = data.focusMin;
+  if (data.breakMin !== undefined) updates["preferences.pomodoro.breakMin"] = data.breakMin;
+  if (data.longBreakMin !== undefined) updates["preferences.pomodoro.longBreakMin"] = data.longBreakMin;
+  if (data.cyclesBeforeLongBreak !== undefined) {
+    updates["preferences.pomodoro.cyclesBeforeLongBreak"] = data.cyclesBeforeLongBreak;
+  }
+
+  const user = await User.findByIdAndUpdate(req.user!.userId, updates, {
+    new: true
+  }).select("preferences.pomodoro");
+
+  if (!user) return res.status(404).json({ message: "User not found" });
+
+  return res.json({ pomodoro: user.preferences?.pomodoro });
+});
+
 export default router;
