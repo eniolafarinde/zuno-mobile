@@ -5,10 +5,18 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  SafeAreaView
+  SafeAreaView,
+  Alert,
 } from "react-native";
+import { Ionicons, Feather } from "@expo/vector-icons";
 import AddTaskModal from "../components/AddTaskModal";
-import { createTask, getTasks, Task } from "../api/tasks";
+import {
+  createTask,
+  getTasks,
+  updateTask,
+  deleteTask,
+  Task,
+} from "../api/tasks";
 
 export default function Tasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -37,35 +45,105 @@ export default function Tasks() {
     setTasks((prev) => [newTask, ...prev]);
   }
 
+  async function handleComplete(task: Task) {
+    const updated = await updateTask(task._id, {
+      status: task.status === "completed" ? "todo" : "completed",
+      completedAt: task.status === "completed" ? null : new Date().toISOString(),
+    });
+
+    setTasks((prev) =>
+      prev.map((item) => (item._id === updated._id ? updated : item))
+    );
+  }
+
+  async function handleDelete(taskId: string) {
+    Alert.alert("Delete task", "Are you sure you want to delete this task?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          await deleteTask(taskId);
+          setTasks((prev) => prev.filter((item) => item._id !== taskId));
+        },
+      },
+    ]);
+  }
+
+  function formatMeta(task: Task) {
+    const parts = [
+      `Priority: ${capitalize(task.priority)}`,
+    ];
+
+    if (task.deadline) {
+      parts.push(`Due: ${new Date(task.deadline).toLocaleDateString()}`);
+    }
+
+    return parts.join("  •  ");
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <Text style={styles.heading}>Tasks</Text>
-      <Text style={styles.subheading}>
-        Organize what needs to get done.
-      </Text>
+      <Text style={styles.subheading}>Plan what needs to get done.</Text>
 
       <FlatList
         data={tasks}
         keyExtractor={(item) => item._id}
         contentContainerStyle={styles.listContent}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <View style={styles.cardTop}>
-              <Text style={styles.taskTitle}>{item.title}</Text>
-              <View style={styles.priorityBadge}>
-                <Text style={styles.priorityText}>{item.priority}</Text>
+        renderItem={({ item, index }) => (
+          <View>
+            <View style={styles.taskRow}>
+              <TouchableOpacity
+                style={[
+                  styles.completeCircle,
+                  item.status === "completed" && styles.completeCircleFilled,
+                ]}
+                onPress={() => handleComplete(item)}
+              >
+                {item.status === "completed" && (
+                  <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                )}
+              </TouchableOpacity>
+
+              <View style={styles.taskContent}>
+                <Text
+                  style={[
+                    styles.taskTitle,
+                    item.status === "completed" && styles.completedText,
+                  ]}
+                >
+                  {item.title}
+                </Text>
+
+                {!!item.description && (
+                  <Text
+                    style={[
+                      styles.taskDescription,
+                      item.status === "completed" && styles.completedText,
+                    ]}
+                  >
+                    {item.description}
+                  </Text>
+                )}
+
+                <Text style={styles.metaText}>{formatMeta(item)}</Text>
+              </View>
+
+              <View style={styles.iconColumn}>
+                <TouchableOpacity style={styles.iconButton}>
+                  <Feather name="edit-2" size={18} color="#000000" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.iconButton}
+                  onPress={() => handleDelete(item._id)}
+                >
+                  <Feather name="trash-2" size={18} color="#000000" />
+                </TouchableOpacity>
               </View>
             </View>
 
-            {!!item.description && (
-              <Text style={styles.taskDescription}>{item.description}</Text>
-            )}
-
-            {!!item.deadline && (
-              <Text style={styles.deadlineText}>
-                Due: {new Date(item.deadline).toLocaleString()}
-              </Text>
-            )}
+            {index !== tasks.length - 1 && <View style={styles.divider} />}
           </View>
         )}
         ListEmptyComponent={
@@ -94,6 +172,10 @@ export default function Tasks() {
   );
 }
 
+function capitalize(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -102,62 +184,80 @@ const styles = StyleSheet.create({
     paddingTop: 20,
   },
   heading: {
-    fontSize: 42,
+    fontSize: 30,
     color: "#000000",
-    fontFamily: "Itim_400Regular",
+    fontWeight: "bold",
     marginBottom: 6,
-    textAlign: "center",
+    margin: 12,
+    marginTop: 20,
   },
   subheading: {
     fontSize: 15,
     color: "#666666",
-    marginBottom: 20,
-    textAlign: "center",
+    marginBottom: 18,
+    marginHorizontal: 12,
   },
   listContent: {
     paddingBottom: 120,
   },
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#EAEAEA",
-    borderRadius: 22,
-    padding: 18,
-    marginBottom: 14,
-  },
-  cardTop: {
+  taskRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    alignItems: "flex-start",
+    paddingVertical: 18,
+  },
+  completeCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: "#BDBDBD",
+    marginTop: 4,
+    marginRight: 10,
     alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 6,
+  },
+  completeCircleFilled: {
+    backgroundColor: "#000000",
+    borderColor: "#000000",
+  },
+  taskContent: {
+    flex: 1,
+    paddingRight: 10,
   },
   taskTitle: {
-    fontSize: 20,
+    fontSize: 14,
     color: "#000000",
-    fontFamily: "Itim_400Regular",
-    flex: 1,
-    marginRight: 10,
-  },
-  priorityBadge: {
-    borderWidth: 1,
-    borderColor: "#000000",
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  priorityText: {
-    color: "#000000",
-    fontSize: 12,
-    textTransform: "capitalize",
+    marginBottom: 2,
   },
   taskDescription: {
-    color: "#555555",
-    fontSize: 15,
-    marginTop: 10,
+    fontSize: 12,
+    color: "#444444",
+    lineHeight: 21,
+    marginBottom: 2,
   },
-  deadlineText: {
-    color: "#777777",
+  metaText: {
     fontSize: 13,
-    marginTop: 10,
+    color: "#7A7A7A",
+    lineHeight: 18,
+  },
+  completedText: {
+    textDecorationLine: "line-through",
+    color: "#9A9A9A",
+  },
+  iconColumn: {
+    justifyContent: "flex-start",
+    alignItems: "center",
+    gap: 14,
+    paddingTop: 2,
+  },
+  iconButton: {
+    padding: 2,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#ECECEC",
+    marginLeft: 36,
   },
   emptyWrap: {
     marginTop: 100,
@@ -179,9 +279,9 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: 24,
     bottom: 34,
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     backgroundColor: "#000000",
     alignItems: "center",
     justifyContent: "center",
@@ -189,6 +289,6 @@ const styles = StyleSheet.create({
   fabText: {
     color: "#FFFFFF",
     fontSize: 34,
-    lineHeight: 38,
+    lineHeight: 36,
   },
 });
