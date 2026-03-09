@@ -549,7 +549,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 16,
     paddingBottom: 40,
   },
   topRow: {
@@ -562,11 +561,13 @@ const styles = StyleSheet.create({
     fontSize: 30,
     marginBottom: 6,
     fontWeight: "700",
+    marginTop: 40,
   },
   subheading: {
     fontSize: 15,
     lineHeight: 22,
     maxWidth: 280,
+    fontFamily: "Itim_400Regular",
   },
   menuButton: {
     width: 42,

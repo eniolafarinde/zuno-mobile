@@ -9,6 +9,7 @@ import {
   Alert,
 } from "react-native";
 import { Ionicons, Feather } from "@expo/vector-icons";
+import { Swipeable } from "react-native-gesture-handler";
 import AddTaskModal from "../components/AddTaskModal";
 import {
   createTask,
@@ -70,16 +71,33 @@ export default function Tasks() {
     ]);
   }
 
-  function formatMeta(task: Task) {
-    const parts = [
-      `Priority: ${capitalize(task.priority)}`,
-    ];
+  function getPriorityColor(priority: Task["priority"]) {
+    if (priority === "high") return "#EF4444";
+    if (priority === "medium") return "#F97316";
+    return "#217740ff";
+  }
 
-    if (task.deadline) {
-      parts.push(`Due: ${new Date(task.deadline).toLocaleDateString()}`);
-    }
+  function getDeadlineColor(deadline?: string | null) {
+    if (!deadline) return "#217740ff";
+    const date = new Date(deadline);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(date);
+    target.setHours(0, 0, 0, 0);
 
-    return parts.join("  •  ");
+    if (target < today) return "#EF4444";
+    if (target.getTime() === today.getTime()) return "#22C55E";
+    return "#0EA5E9";
+  }
+
+  function formatDeadline(deadline?: string | null) {
+    if (!deadline) return "No date";
+    const date = new Date(deadline);
+    return date.toLocaleDateString(undefined, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    });
   }
 
   return (
@@ -93,55 +111,97 @@ export default function Tasks() {
         contentContainerStyle={styles.listContent}
         renderItem={({ item, index }) => (
           <View>
-            <View style={styles.taskRow}>
-              <TouchableOpacity
-                style={[
-                  styles.completeCircle,
-                  item.status === "completed" && styles.completeCircleFilled,
-                ]}
-                onPress={() => handleComplete(item)}
-              >
-                {item.status === "completed" && (
-                  <Ionicons name="checkmark" size={14} color="#FFFFFF" />
-                )}
-              </TouchableOpacity>
-
-              <View style={styles.taskContent}>
-                <Text
+            <Swipeable
+              renderRightActions={() => (
+                <View style={styles.swipeActions}>
+                  <TouchableOpacity
+                    style={[styles.swipeButton, styles.swipeDelete]}
+                    onPress={() => handleDelete(item._id)}
+                  >
+                    <Feather name="trash-2" size={18} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+              )}
+            >
+              <View style={styles.taskRow}>
+                <TouchableOpacity
                   style={[
-                    styles.taskTitle,
-                    item.status === "completed" && styles.completedText,
+                    styles.completeCircle,
+                    item.status === "completed" && styles.completeCircleFilled,
                   ]}
+                  onPress={() => handleComplete(item)}
                 >
-                  {item.title}
-                </Text>
+                  {item.status === "completed" && (
+                    <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                  )}
+                </TouchableOpacity>
 
-                {!!item.description && (
+                <View style={styles.taskContent}>
                   <Text
                     style={[
-                      styles.taskDescription,
+                      styles.taskTitle,
                       item.status === "completed" && styles.completedText,
                     ]}
                   >
-                    {item.description}
+                    {item.title}
                   </Text>
-                )}
 
-                <Text style={styles.metaText}>{formatMeta(item)}</Text>
-              </View>
+                  {!!item.description && (
+                    <Text
+                      style={[
+                        styles.taskDescription,
+                        item.status === "completed" && styles.completedText,
+                      ]}
+                    >
+                      {item.description}
+                    </Text>
+                  )}
 
-              <View style={styles.iconColumn}>
-                <TouchableOpacity style={styles.iconButton}>
-                  <Feather name="edit-2" size={18} color="#000000" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.iconButton}
-                  onPress={() => handleDelete(item._id)}
-                >
-                  <Feather name="trash-2" size={18} color="#000000" />
-                </TouchableOpacity>
+                  <View style={styles.metaRow}>
+                    <View
+                      style={[
+                        styles.priorityPill,
+                        { borderColor: getPriorityColor(item.priority) },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.priorityDot,
+                          { backgroundColor: getPriorityColor(item.priority) },
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.priorityText,
+                          { color: getPriorityColor(item.priority) },
+                        ]}
+                      >
+                        {capitalize(item.priority)}
+                      </Text>
+                    </View>
+
+                    {item.deadline && (
+                      <View style={styles.deadlineRow}>
+                        <Feather
+                          name="calendar"
+                          size={14}
+                          color={getDeadlineColor(item.deadline)}
+                          style={{ marginRight: 4 }}
+                        />
+                        <Text
+                          style={[
+                            styles.deadlineText,
+                            { color: getDeadlineColor(item.deadline) },
+                          ]}
+                        >
+                          {formatDeadline(item.deadline)}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
               </View>
-            </View>
+            </Swipeable>
 
             {index !== tasks.length - 1 && <View style={styles.divider} />}
           </View>
@@ -182,6 +242,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     paddingHorizontal: 20,
     paddingTop: 20,
+    paddingBottom: 20,
   },
   heading: {
     fontSize: 30,
@@ -189,13 +250,14 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginBottom: 6,
     margin: 12,
-    marginTop: 20,
+    marginTop: 40,
   },
   subheading: {
     fontSize: 15,
     color: "#666666",
     marginBottom: 18,
     marginHorizontal: 12,
+    fontFamily: "Itim_400Regular",
   },
   listContent: {
     paddingBottom: 120,
@@ -245,14 +307,55 @@ const styles = StyleSheet.create({
     textDecorationLine: "line-through",
     color: "#9A9A9A",
   },
-  iconColumn: {
-    justifyContent: "flex-start",
+  metaRow: {
+    flexDirection: "row",
     alignItems: "center",
-    gap: 14,
-    paddingTop: 2,
+    gap: 10,
+    marginTop: 6,
+    marginBottom: -6,
   },
-  iconButton: {
-    padding: 2,
+  priorityPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  priorityDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  priorityText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  deadlineRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  deadlineText: {
+    fontSize: 12,
+  },
+  swipeActions: {
+    width: 96,
+    justifyContent: "center",
+    alignItems: "center",
+    marginVertical: 10,
+  },
+  swipeButton: {
+    width: 80,
+    borderRadius: 18,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: 4,
+  },
+  swipeDelete: {
+    backgroundColor: "#EF4444",
+    width: 50,
   },
   divider: {
     height: 1,
@@ -279,9 +382,9 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: 24,
     bottom: 34,
-    width: 68,
-    height: 68,
-    borderRadius: 34,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: "#000000",
     alignItems: "center",
     justifyContent: "center",
