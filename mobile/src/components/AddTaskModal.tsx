@@ -7,7 +7,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   Pressable,
+  Platform,
 } from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 type Props = {
   visible: boolean;
@@ -24,7 +26,8 @@ export default function AddTaskModal({ visible, onClose, onCreate }: Props) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<"high" | "medium" | "low">("medium");
-  const [deadline, setDeadline] = useState("");
+  const [deadline, setDeadline] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [loading, setLoading] = useState(false);
 
   async function handleCreate() {
@@ -36,13 +39,13 @@ export default function AddTaskModal({ visible, onClose, onCreate }: Props) {
         title: title.trim(),
         description: description.trim(),
         priority,
-        deadline: deadline.trim() || undefined,
+        deadline: deadline ? deadline.toISOString() : undefined,
       });
 
       setTitle("");
       setDescription("");
       setPriority("medium");
-      setDeadline("");
+      setDeadline(null);
       onClose();
     } finally {
       setLoading(false);
@@ -70,31 +73,34 @@ export default function AddTaskModal({ visible, onClose, onCreate }: Props) {
             multiline
           />
 
+          <Text style={styles.sectionLabel}>Priority</Text>
           <View style={styles.row}>
-            <PriorityPill
-              label="High"
-              active={priority === "high"}
-              onPress={() => setPriority("high")}
-            />
-            <PriorityPill
-              label="Medium"
-              active={priority === "medium"}
-              onPress={() => setPriority("medium")}
-            />
-            <PriorityPill
-              label="Low"
-              active={priority === "low"}
-              onPress={() => setPriority("low")}
-            />
+            <Pill label="High" active={priority === "high"} onPress={() => setPriority("high")} />
+            <Pill label="Medium" active={priority === "medium"} onPress={() => setPriority("medium")} />
+            <Pill label="Low" active={priority === "low"} onPress={() => setPriority("low")} />
           </View>
 
-          <TextInput
-            placeholder="Deadline (YYYY-MM-DDTHH:mm:ss.sssZ)"
-            placeholderTextColor="#7A7A7A"
-            value={deadline}
-            onChangeText={setDeadline}
-            style={styles.deadlineInput}
-          />
+          <Text style={styles.sectionLabel}>Deadline</Text>
+          <TouchableOpacity
+            style={styles.deadlineButton}
+            onPress={() => setShowDatePicker(true)}
+          >
+            <Text style={styles.deadlineButtonText}>
+              {deadline ? deadline.toLocaleDateString() : "Choose deadline"}
+            </Text>
+          </TouchableOpacity>
+
+          {showDatePicker && (
+            <DateTimePicker
+              value={deadline || new Date()}
+              mode="date"
+              display={Platform.OS === "ios" ? "spinner" : "default"}
+              onChange={(_event, selectedDate) => {
+                setShowDatePicker(false);
+                if (selectedDate) setDeadline(selectedDate);
+              }}
+            />
+          )}
 
           <TouchableOpacity
             style={[styles.createButton, loading && { opacity: 0.7 }]}
@@ -111,7 +117,7 @@ export default function AddTaskModal({ visible, onClose, onCreate }: Props) {
   );
 }
 
-function PriorityPill({
+function Pill({
   label,
   active,
   onPress,
@@ -135,7 +141,7 @@ function PriorityPill({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
+    backgroundColor: "rgba(0,0,0,0.35)",
     justifyContent: "flex-end",
   },
   sheet: {
@@ -145,25 +151,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 24,
     paddingBottom: 36,
-    minHeight: 380,
   },
   titleInput: {
-    fontSize: 30,
+    fontSize: 28,
     color: "#000000",
     fontFamily: "Itim_400Regular",
-    marginBottom: 16,
+    marginBottom: 14,
   },
   descriptionInput: {
-    fontSize: 18,
+    fontSize: 16,
     color: "#333333",
-    minHeight: 60,
-    marginBottom: 20,
+    minHeight: 56,
+    marginBottom: 18,
+  },
+  sectionLabel: {
+    fontSize: 13,
+    color: "#666666",
+    marginBottom: 10,
+    marginTop: 2,
   },
   row: {
     flexDirection: "row",
     gap: 10,
-    marginBottom: 18,
     flexWrap: "wrap",
+    marginBottom: 16,
   },
   pill: {
     borderWidth: 1,
@@ -179,26 +190,29 @@ const styles = StyleSheet.create({
   },
   pillText: {
     color: "#000000",
-    fontSize: 15,
+    fontSize: 14,
   },
   activePillText: {
     color: "#FFFFFF",
   },
-  deadlineInput: {
+  deadlineButton: {
     borderWidth: 1,
     borderColor: "#D9D9D9",
     borderRadius: 18,
     paddingVertical: 14,
     paddingHorizontal: 16,
-    fontSize: 15,
-    color: "#000000",
     marginBottom: 18,
+  },
+  deadlineButtonText: {
+    color: "#000000",
+    fontSize: 15,
   },
   createButton: {
     backgroundColor: "#000000",
     borderRadius: 18,
     paddingVertical: 16,
     alignItems: "center",
+    marginTop: 4,
   },
   createButtonText: {
     color: "#FFFFFF",

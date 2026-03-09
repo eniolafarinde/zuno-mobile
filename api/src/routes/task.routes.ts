@@ -9,7 +9,7 @@ const createTaskSchema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string().optional(),
   priority: z.enum(["high", "medium", "low"]).optional(),
-  deadline: z.string().datetime().optional().or(z.literal("")),
+  deadline: z.string().optional(),
 });
 
 router.post("/tasks", requireAuth, async (req: AuthedRequest, res) => {
