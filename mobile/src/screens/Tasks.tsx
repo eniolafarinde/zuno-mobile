@@ -242,6 +242,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     paddingHorizontal: 20,
     paddingTop: 20,
+    paddingBottom: 20,
   },
   heading: {
     fontSize: 30,
