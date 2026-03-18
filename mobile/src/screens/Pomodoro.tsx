@@ -3,45 +3,95 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
-  ScrollView,
   AppState,
   AppStateStatus,
   Modal,
   Pressable,
+  ImageBackground,
+  Dimensions,
+  FlatList,
+  Animated,
 } from "react-native";
-import Svg, { Circle, Defs, ClipPath, Rect, G, Path } from "react-native-svg";
-import { Feather } from "@expo/vector-icons";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Feather, Ionicons } from "@expo/vector-icons";
+import {
+  TimerTheme,
+  DEFAULT_TIMER_THEMES,
+  getThemeBackgroundSource,
+} from "../types/timerThemes";
 
 type PomodoroMode = "focus" | "break" | "longBreak";
-type SceneOption = "minimal" | "forest" | "ocean";
 type SoundOption = "none" | "chimes" | "rain";
 
-const FOCUS_PRESETS = [15, 25, 45, 60];
-const RING_SIZE = 250;
-const STROKE_WIDTH = 12;
-const RADIUS = (RING_SIZE - STROKE_WIDTH) / 2;
-const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
-
+const FOCUS_RULER_MINUTES = [20, 25, 30];
+const FOCUS_PRESETS_MENU = [15, 25, 45, 60];
 const MODE_DURATIONS = {
   focus: 25 * 60,
   break: 5 * 60,
   longBreak: 15 * 60,
 };
 
+const OVERLAY_OPACITY = 0.45;
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+// Cylindrical ruler: tick range 0..30 min, compressed spacing toward edges
+const RULER_MIN = 0;
+const RULER_MAX = 30;
+const RULER_TICK_COUNT = RULER_MAX - RULER_MIN + 1; // 31
+const RULER_CENTER_INDEX = 25; // index 25 = 25 min (visual center for spacing)
+const RULER_BASE_SPACING = 28;
+
+/** Spacing at index i (0..30) — smaller toward edges for cylindrical look */
+function rulerSpacing(i: number): number {
+  const t = (i - RULER_CENTER_INDEX) / (RULER_TICK_COUNT / 2);
+  const factor = 0.45 + 0.55 * Math.cos((t * Math.PI) / 2);
+  return RULER_BASE_SPACING * Math.max(0.4, factor);
+}
+
+const RULER_TICK_POSITIONS: number[] = (() => {
+  const out: number[] = [0];
+  for (let i = 0; i < RULER_TICK_COUNT; i++) {
+    out.push(out[i] + rulerSpacing(i));
+  }
+  return out;
+})();
+const RULER_STRIP_WIDTH = RULER_TICK_POSITIONS[RULER_TICK_COUNT];
+const RULER_WINDOW_WIDTH = SCREEN_WIDTH - 40;
+
+/** X position on strip for a given minute (0..30), interpolated */
+function rulerPositionAtMinute(min: number): number {
+  const i = Math.floor(min);
+  const frac = min - i;
+  if (i <= 0) return 0;
+  if (i >= RULER_TICK_COUNT - 1) return RULER_TICK_POSITIONS[RULER_TICK_COUNT - 1];
+  const a = RULER_TICK_POSITIONS[i];
+  const b = RULER_TICK_POSITIONS[i + 1];
+  return a + frac * (b - a);
+}
+const THEME_GRID_COLUMNS = 3;
+const THEME_CARD_GAP = 12;
+const THEME_CARD_SIZE =
+  (SCREEN_WIDTH - 20 * 2 - THEME_CARD_GAP * (THEME_GRID_COLUMNS - 1)) /
+  THEME_GRID_COLUMNS;
+
 export default function Pomodoro() {
   const [mode, setMode] = useState<PomodoroMode>("focus");
   const [isRunning, setIsRunning] = useState(false);
   const [remainingSeconds, setRemainingSeconds] = useState(25 * 60);
-  const [scene, setScene] = useState<SceneOption>("minimal");
   const [sound, setSound] = useState<SoundOption>("chimes");
   const [focusMinutes, setFocusMinutes] = useState(25);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [themesModalVisible, setThemesModalVisible] = useState(false);
+  const [selectedThemeId, setSelectedThemeId] = useState<string>("minimal");
 
   const targetTimestampRef = useRef<number | null>(null);
   const appState = useRef<AppStateStatus>(AppState.currentState);
+  const rulerTranslateX = useRef(new Animated.Value(0)).current;
 
+  const activeTheme =
+    DEFAULT_TIMER_THEMES.find((t) => t.id === selectedThemeId) ??
+    DEFAULT_TIMER_THEMES[0];
   const totalSeconds = useMemo(() => {
     if (mode === "focus") return focusMinutes * 60;
     if (mode === "break") return MODE_DURATIONS.break;
@@ -54,61 +104,28 @@ export default function Pomodoro() {
     return Math.max(0, Math.min(1, elapsedRatio));
   }, [remainingSeconds, totalSeconds]);
 
-  const ringProgress = useMemo(() => {
-    const remainingRatio = remainingSeconds / totalSeconds;
-    return Math.max(0, Math.min(1, remainingRatio));
-  }, [remainingSeconds, totalSeconds]);
+  // Ruler position: keep current remaining minutes at center; moves horizontally as time runs down
+  const remainingMinutes = remainingSeconds / 60;
+  const rulerTargetX = useMemo(() => {
+    if (mode !== "focus") return RULER_WINDOW_WIDTH / 2 - rulerPositionAtMinute(focusMinutes);
+    const min = Math.max(RULER_MIN, Math.min(RULER_MAX, remainingMinutes));
+    return RULER_WINDOW_WIDTH / 2 - rulerPositionAtMinute(min);
+  }, [mode, focusMinutes, remainingMinutes]);
 
-  const scenePalette = useMemo(() => {
-    switch (scene) {
-      case "forest":
-        return {
-          pageBg: "#F6FAF7",
-          heroBg: "#DDEEE2",
-          heroBorder: "#C9E1D1",
-          primary: "#163A24",
-          secondary: "#4B6A56",
-          chipBg: "#FFFFFF",
-          chipBorder: "#D7E4DA",
-          activeBg: "#163A24",
-          activeText: "#FFFFFF",
-        };
-      case "ocean":
-        return {
-          pageBg: "#F5FBFF",
-          heroBg: "#D9F1FF",
-          heroBorder: "#C4E8FB",
-          primary: "#14344A",
-          secondary: "#51758A",
-          chipBg: "#FFFFFF",
-          chipBorder: "#D4EAF7",
-          activeBg: "#14344A",
-          activeText: "#FFFFFF",
-        };
-      default:
-        return {
-          pageBg: "#FFFFFF",
-          heroBg: "#FAFAFA",
-          heroBorder: "#ECECEC",
-          primary: "#000000",
-          secondary: "#666666",
-          chipBg: "#FFFFFF",
-          chipBorder: "#E5E5E5",
-          activeBg: "#000000",
-          activeText: "#FFFFFF",
-        };
-    }
-  }, [scene]);
+  useEffect(() => {
+    Animated.timing(rulerTranslateX, {
+      toValue: rulerTargetX,
+      duration: 600,
+      useNativeDriver: true,
+    }).start();
+  }, [rulerTargetX, rulerTranslateX]);
 
   useEffect(() => {
     if (!isRunning) return;
-
     const id = setInterval(() => {
       if (targetTimestampRef.current == null) return;
-
       const now = Date.now();
       const diffMs = targetTimestampRef.current - now;
-
       if (diffMs <= 0) {
         setIsRunning(false);
         targetTimestampRef.current = null;
@@ -116,19 +133,19 @@ export default function Pomodoro() {
         clearInterval(id);
         return;
       }
-
       setRemainingSeconds(Math.round(diffMs / 1000));
     }, 1000);
-
     return () => clearInterval(id);
   }, [isRunning]);
 
   useEffect(() => {
     function handleAppStateChange(nextState: AppStateStatus) {
-      if (appState.current.match(/inactive|background/) && nextState === "active") {
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextState === "active"
+      ) {
         if (isRunning && targetTimestampRef.current != null) {
           const diffMs = targetTimestampRef.current - Date.now();
-
           if (diffMs <= 0) {
             setIsRunning(false);
             targetTimestampRef.current = null;
@@ -138,10 +155,8 @@ export default function Pomodoro() {
           }
         }
       }
-
       appState.current = nextState;
     }
-
     const sub = AppState.addEventListener("change", handleAppStateChange);
     return () => sub.remove();
   }, [isRunning]);
@@ -154,7 +169,6 @@ export default function Pomodoro() {
     } else {
       setRemainingSeconds(MODE_DURATIONS.longBreak);
     }
-
     targetTimestampRef.current = null;
     setIsRunning(false);
   }, [mode, focusMinutes]);
@@ -175,11 +189,9 @@ export default function Pomodoro() {
       targetTimestampRef.current = null;
       return;
     }
-
     if (!targetTimestampRef.current) {
       targetTimestampRef.current = Date.now() + remainingSeconds * 1000;
     }
-
     setIsRunning(true);
   }
 
@@ -191,7 +203,6 @@ export default function Pomodoro() {
     } else {
       setRemainingSeconds(MODE_DURATIONS.longBreak);
     }
-
     targetTimestampRef.current = null;
     setIsRunning(false);
   }
@@ -201,143 +212,224 @@ export default function Pomodoro() {
     setMode("focus");
   }
 
-  return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: scenePalette.pageBg }]}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.topRow}>
-          <View>
-            <Text style={[styles.heading, { color: scenePalette.primary }]}>Pomodoro</Text>
-            <Text style={[styles.subheading, { color: scenePalette.secondary }]}>
-              Stay present and ease into focus.
-            </Text>
-          </View>
+  function handleBreak() {
+    setMode("break");
+  }
 
+  function handleDone() {
+    setMode("focus");
+    setRemainingSeconds(focusMinutes * 60);
+    targetTimestampRef.current = null;
+    setIsRunning(false);
+  }
+
+  const bgSource = getThemeBackgroundSource(activeTheme);
+  const accent = activeTheme.accentColor;
+  const fontFamily = activeTheme.fontFamily;
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      {bgSource ? (
+        <ImageBackground
+          source={bgSource}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+        >
+          <View
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                backgroundColor: `rgba(0,0,0,${OVERLAY_OPACITY})`,
+              },
+            ]}
+          />
+        </ImageBackground>
+      ) : (
+        <View
+          style={[
+            StyleSheet.absoluteFill,
+            { backgroundColor: activeTheme.backgroundColor },
+          ]}
+        />
+      )}
+
+      <View style={styles.content}>
+        <View style={styles.topRow}>
+          <Text style={[styles.title, { color: accent }]}>Pomodoro</Text>
           <TouchableOpacity
-            style={[styles.menuButton, { borderColor: scenePalette.chipBorder }]}
+            style={[styles.menuButton, { borderColor: accent }]}
             onPress={() => setMenuVisible(true)}
           >
-            <Feather name="more-horizontal" size={22} color={scenePalette.primary} />
+            <Feather name="more-horizontal" size={22} color={accent} />
           </TouchableOpacity>
         </View>
 
-        <View style={styles.modeWrap}>
-          {(["focus", "break", "longBreak"] as PomodoroMode[]).map((value) => {
-            const active = mode === value;
-            return (
-              <TouchableOpacity
-                key={value}
-                style={[
-                  styles.modeChip,
-                  {
-                    backgroundColor: active ? scenePalette.activeBg : scenePalette.chipBg,
-                    borderColor: active ? scenePalette.activeBg : scenePalette.chipBorder,
-                  },
-                ]}
-                onPress={() => setMode(value)}
-              >
-                <Text
-                  style={[
-                    styles.modeChipText,
-                    { color: active ? scenePalette.activeText : scenePalette.primary },
-                  ]}
-                >
-                  {modeLabel(value)}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        <View
+        <Text
           style={[
-            styles.heroCard,
-            {
-              backgroundColor: scenePalette.heroBg,
-              borderColor: scenePalette.heroBorder,
-            },
+            styles.modeLabel,
+            { color: accent, opacity: 0.85 },
+            fontFamily ? { fontFamily } : undefined,
           ]}
         >
-          <View style={styles.visualWrap}>
-            {scene === "minimal" && (
-              <MinimalTimer
-                progress={ringProgress}
-                time={formatTime(remainingSeconds)}
-                label={modeLabel(mode)}
-              />
-            )}
+          {modeLabel(mode)}
+        </Text>
 
-            {scene === "forest" && (
-              <ForestTimer
-                progress={progress}
-                time={formatTime(remainingSeconds)}
-                label={modeLabel(mode)}
-              />
-            )}
+        <Text
+          style={[
+            styles.timerDisplay,
+            { color: accent },
+            fontFamily ? { fontFamily } : undefined,
+          ]}
+        >
+          {formatTime(remainingSeconds)}
+        </Text>
 
-            {scene === "ocean" && (
-              <OceanTimer
-                progress={progress}
-                time={formatTime(remainingSeconds)}
-                label={modeLabel(mode)}
-              />
-            )}
+        {/* Cylindrical ruler: round look, moves horizontally with time */}
+        <View style={styles.rulerWrap}>
+          <View style={[styles.rulerWindow, { width: RULER_WINDOW_WIDTH }]}>
+            <Animated.View
+              style={[
+                styles.rulerStrip,
+                {
+                  width: RULER_STRIP_WIDTH,
+                  transform: [{ translateX: rulerTranslateX }],
+                },
+              ]}
+            >
+              {Array.from({ length: RULER_TICK_COUNT }, (_, i) => {
+                const min = RULER_MIN + i;
+                const isMajor = FOCUS_RULER_MINUTES.includes(min);
+                const isActive =
+                  mode === "focus" &&
+                  focusMinutes === min &&
+                  Math.floor(remainingMinutes) === min;
+                const tickHeight = isMajor ? 22 : 14;
+                return (
+                  <View
+                    key={min}
+                    style={[styles.rulerTickCell, { width: rulerSpacing(i) }]}
+                  >
+                    <View
+                      style={[
+                        styles.rulerTickLine,
+                        {
+                          height: tickHeight,
+                          backgroundColor: isActive ? accent : `${accent}66`,
+                          width: isMajor ? 2.5 : 1.5,
+                        },
+                      ]}
+                    />
+                    {isMajor && (
+                      <Text
+                        style={[
+                          styles.rulerTickNumber,
+                          { color: isActive ? accent : `${accent}aa` },
+                          fontFamily ? { fontFamily } : undefined,
+                        ]}
+                      >
+                        {min}
+                      </Text>
+                    )}
+                  </View>
+                );
+              })}
+            </Animated.View>
           </View>
-
-          <View style={styles.timerButtonsRow}>
-            <TouchableOpacity
-              style={[styles.primaryButton, { backgroundColor: scenePalette.activeBg }]}
-              onPress={toggleRunning}
-            >
-              <Text style={[styles.primaryButtonText, { color: scenePalette.activeText }]}>
-                {isRunning ? "Pause" : "Start"}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.secondaryButton, { borderColor: scenePalette.chipBorder }]}
-              onPress={handleReset}
-            >
-              <Text style={[styles.secondaryButtonText, { color: scenePalette.primary }]}>
-                Reset
-              </Text>
-            </TouchableOpacity>
+          {/* Fixed tappable preset labels */}
+          <View style={[styles.rulerPresets, { width: RULER_WINDOW_WIDTH }]}>
+            {FOCUS_RULER_MINUTES.map((min) => {
+              const active = mode === "focus" && focusMinutes === min;
+              return (
+                <TouchableOpacity
+                  key={min}
+                  style={styles.rulerPresetTouch}
+                  onPress={() => selectFocusMinutes(min)}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[
+                      styles.rulerPresetLabel,
+                      { color: active ? accent : `${accent}99` },
+                      fontFamily ? { fontFamily } : undefined,
+                    ]}
+                  >
+                    {min}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
-      </ScrollView>
 
+        {/* Controls: Break | Play | Done */}
+        <View style={styles.controlsRow}>
+          <TouchableOpacity
+            style={[styles.sideButton, { borderColor: `${accent}66` }]}
+            onPress={handleBreak}
+          >
+            <Feather name="coffee" size={24} color={accent} />
+            <Text
+              style={[
+                styles.sideButtonLabel,
+                { color: accent },
+                fontFamily ? { fontFamily } : undefined,
+              ]}
+            >
+              Break
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.playButton, { borderColor: `${accent}99` }]}
+            onPress={toggleRunning}
+            activeOpacity={0.9}
+          >
+            <View style={[styles.playButtonInner, { backgroundColor: `${accent}22` }]}>
+              <Feather
+                name={isRunning ? "pause" : "play"}
+                size={44}
+                color={accent}
+              />
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.sideButton, { borderColor: `${accent}66` }]}
+            onPress={handleDone}
+          >
+            <Feather name="check" size={24} color={accent} />
+            <Text
+              style={[
+                styles.sideButtonLabel,
+                { color: accent },
+                fontFamily ? { fontFamily } : undefined,
+              ]}
+            >
+              Done
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Session settings modal */}
       <Modal visible={menuVisible} transparent animationType="fade">
         <Pressable style={styles.modalOverlay} onPress={() => setMenuVisible(false)}>
           <Pressable
-            style={[styles.menuSheet, { backgroundColor: "#FFFFFF", borderColor: "#EAEAEA" }]}
-            onPress={() => {}}
+            style={styles.menuSheet}
+            onPress={(e) => e.stopPropagation()}
           >
             <Text style={styles.menuTitle}>Session settings</Text>
 
-            <Text style={styles.menuSectionTitle}>Theme</Text>
-            <View style={styles.menuChipRow}>
-              {(["minimal", "forest", "ocean"] as SceneOption[]).map((value) => {
-                const active = scene === value;
-                return (
-                  <TouchableOpacity
-                    key={value}
-                    style={[
-                      styles.menuChip,
-                      active && styles.menuChipActive,
-                    ]}
-                    onPress={() => setScene(value)}
-                  >
-                    <Text
-                      style={[
-                        styles.menuChipText,
-                        active && styles.menuChipTextActive,
-                      ]}
-                    >
-                      {capitalize(value)}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <TouchableOpacity
+              style={styles.themesEntry}
+              onPress={() => {
+                setMenuVisible(false);
+                setThemesModalVisible(true);
+              }}
+            >
+              <Text style={styles.themesEntryLabel}>Timer Themes</Text>
+              <Feather name="chevron-right" size={20} color="#000" />
+            </TouchableOpacity>
 
             <Text style={styles.menuSectionTitle}>Sound</Text>
             <View style={styles.menuChipRow}>
@@ -346,10 +438,7 @@ export default function Pomodoro() {
                 return (
                   <TouchableOpacity
                     key={option}
-                    style={[
-                      styles.menuChip,
-                      active && styles.menuChipActive,
-                    ]}
+                    style={[styles.menuChip, active && styles.menuChipActive]}
                     onPress={() => setSound(option)}
                   >
                     <Text
@@ -371,15 +460,12 @@ export default function Pomodoro() {
 
             <Text style={styles.menuSectionTitle}>Focus length</Text>
             <View style={styles.menuChipRow}>
-              {FOCUS_PRESETS.map((value) => {
+              {FOCUS_PRESETS_MENU.map((value) => {
                 const active = focusMinutes === value;
                 return (
                   <TouchableOpacity
                     key={value}
-                    style={[
-                      styles.menuChip,
-                      active && styles.menuChipActive,
-                    ]}
+                    style={[styles.menuChip, active && styles.menuChipActive]}
                     onPress={() => selectFocusMinutes(value)}
                   >
                     <Text
@@ -404,132 +490,117 @@ export default function Pomodoro() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Timer Themes selection modal */}
+      <Modal
+        visible={themesModalVisible}
+        transparent
+        animationType="slide"
+      >
+        <View style={styles.themesModalContainer}>
+          <View style={styles.themesModalHeader}>
+            <Text style={styles.themesModalTitle}>Timer Themes</Text>
+            <TouchableOpacity
+              onPress={() => setThemesModalVisible(false)}
+              style={styles.themesModalClose}
+            >
+              <Feather name="x" size={26} color="#000" />
+            </TouchableOpacity>
+          </View>
+          <FlatList
+            data={DEFAULT_TIMER_THEMES}
+            keyExtractor={(item) => item.id}
+            numColumns={THEME_GRID_COLUMNS}
+            contentContainerStyle={styles.themesGrid}
+            columnWrapperStyle={styles.themesRow}
+            renderItem={({ item: theme }) => (
+              <ThemePreviewCard
+                theme={theme}
+                isSelected={selectedThemeId === theme.id}
+                onSelect={() => {
+                  setSelectedThemeId(theme.id);
+                  setThemesModalVisible(false);
+                }}
+                cardSize={THEME_CARD_SIZE}
+              />
+            )}
+          />
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
-function MinimalTimer({
-  progress,
-  time,
-  label,
+function ThemePreviewCard({
+  theme,
+  isSelected,
+  onSelect,
+  cardSize,
 }: {
-  progress: number;
-  time: string;
-  label: string;
+  theme: TimerTheme;
+  isSelected: boolean;
+  onSelect: () => void;
+  cardSize: number;
 }) {
-  const dashOffset = CIRCUMFERENCE * (1 - progress);
+  const bgSource = getThemeBackgroundSource(theme);
+  const accent = theme.accentColor;
 
   return (
-    <View style={styles.centerVisual}>
-      <Svg width={RING_SIZE} height={RING_SIZE}>
-        <Circle
-          stroke="#E6E6E6"
-          fill="none"
-          cx={RING_SIZE / 2}
-          cy={RING_SIZE / 2}
-          r={RADIUS}
-          strokeWidth={STROKE_WIDTH}
-        />
-        <Circle
-          stroke="#000000"
-          fill="none"
-          cx={RING_SIZE / 2}
-          cy={RING_SIZE / 2}
-          r={RADIUS}
-          strokeWidth={STROKE_WIDTH}
-          strokeLinecap="round"
-          strokeDasharray={`${CIRCUMFERENCE} ${CIRCUMFERENCE}`}
-          strokeDashoffset={dashOffset}
-          transform={`rotate(-90 ${RING_SIZE / 2} ${RING_SIZE / 2})`}
-        />
-      </Svg>
-
-      <View style={styles.absoluteCenter}>
-        <Text style={styles.visualLabelDark}>{label}</Text>
-        <Text style={styles.visualTimeDark}>{time}</Text>
-      </View>
-    </View>
-  );
-}
-
-function ForestTimer({
-  progress,
-  time,
-  label,
-}: {
-  progress: number;
-  time: string;
-  label: string;
-}) {
-  const treeScale = 0.55 + progress * 0.55;
-  const canopyScale = 0.6 + progress * 0.5;
-  const leafOpacity = 0.35 + progress * 0.65;
-
-  return (
-    <View style={styles.centerVisual}>
-      <View style={styles.forestCardInner}>
-        <Text style={styles.visualLabelForest}>{label}</Text>
-        <Text style={styles.visualTimeForest}>{time}</Text>
-
-        <Svg width={250} height={220} viewBox="0 0 250 220">
-          <Rect x="0" y="185" width="250" height="35" rx="18" fill="#B8D7C0" />
-
-          <G origin="125,185" scale={treeScale}>
-            <Rect x="117" y="110" width="16" height="78" rx="8" fill="#6C4A2D" />
-          </G>
-
-          <G origin="125,110" scale={canopyScale}>
-            <Circle cx="125" cy="82" r="44" fill={`rgba(36, 99, 52, ${leafOpacity})`} />
-            <Circle cx="92" cy="100" r="30" fill={`rgba(52, 128, 70, ${leafOpacity})`} />
-            <Circle cx="158" cy="101" r="32" fill={`rgba(59, 130, 79, ${leafOpacity})`} />
-            <Circle cx="125" cy="115" r="34" fill={`rgba(46, 110, 61, ${leafOpacity})`} />
-          </G>
-        </Svg>
-      </View>
-    </View>
-  );
-}
-
-function OceanTimer({
-  progress,
-  time,
-  label,
-}: {
-  progress: number;
-  time: string;
-  label: string;
-}) {
-  const circleRadius = 95;
-  const waterTop = 40 + (1 - progress) * 150;
-
-  return (
-    <View style={styles.centerVisual}>
-      <Text style={styles.visualLabelOcean}>{label}</Text>
-      <Text style={styles.visualTimeOcean}>{time}</Text>
-
-      <Svg width={240} height={240} viewBox="0 0 240 240">
-        <Defs>
-          <ClipPath id="oceanClip">
-            <Circle cx="120" cy="120" r={circleRadius} />
-          </ClipPath>
-        </Defs>
-
-        <Circle cx="120" cy="120" r={circleRadius} fill="#EAF8FF" stroke="#8FD3F4" strokeWidth="4" />
-
-        <G clipPath="url(#oceanClip)">
-          <Rect x="0" y={waterTop} width="240" height="240" fill="#7DD3FC" />
-          <Path
-            d={`M0 ${waterTop + 12}
-                C 20 ${waterTop}, 40 ${waterTop + 18}, 60 ${waterTop + 12}
-                C 80 ${waterTop + 6}, 100 ${waterTop + 24}, 120 ${waterTop + 12}
-                C 140 ${waterTop}, 160 ${waterTop + 18}, 180 ${waterTop + 12}
-                C 200 ${waterTop + 6}, 220 ${waterTop + 20}, 240 ${waterTop + 12}
-                L240 240 L0 240 Z`}
-            fill="#38BDF8"
+    <TouchableOpacity
+      style={[styles.themeCard, { width: cardSize, height: cardSize * 1.1 }]}
+      onPress={onSelect}
+      activeOpacity={0.9}
+    >
+      <View style={[styles.themeCardPreview, { width: cardSize, height: cardSize }]}>
+        {bgSource ? (
+          <ImageBackground
+            source={bgSource}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+          >
+            <View
+              style={[
+                StyleSheet.absoluteFill,
+                { backgroundColor: "rgba(0,0,0,0.4)" },
+              ]}
+            />
+          </ImageBackground>
+        ) : (
+          <View
+            style={[
+              StyleSheet.absoluteFill,
+              { backgroundColor: theme.backgroundColor },
+            ]}
           />
-        </G>
-      </Svg>
-    </View>
+        )}
+        <View style={styles.themeCardPreviewContent}>
+          <Text
+            style={[styles.themeCardTime, { color: accent }]}
+            numberOfLines={1}
+          >
+            25:00
+          </Text>
+          <View style={[styles.themeCardPlayHint, { backgroundColor: `${accent}44` }]}>
+            <Feather name="play" size={14} color={accent} />
+          </View>
+        </View>
+      </View>
+      <View style={styles.themeCardFooter}>
+        {theme.isPremium && (
+          <View style={styles.themeCardCrown}>
+            <Ionicons name="diamond" size={14} color="#b8860b" />
+          </View>
+        )}
+        <Text style={styles.themeCardName} numberOfLines={1}>
+          {theme.name}
+        </Text>
+        {isSelected && (
+          <View style={styles.themeCardCheck}>
+            <Feather name="check" size={16} color="#fff" />
+          </View>
+        )}
+      </View>
+    </TouchableOpacity>
   );
 }
 
@@ -539,35 +610,26 @@ function modeLabel(mode: PomodoroMode) {
   return "Long break";
 }
 
-function capitalize(value: string) {
-  return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
-  scrollContent: {
+  content: {
+    flex: 1,
     paddingHorizontal: 20,
-    paddingBottom: 40,
+    paddingTop: 56,
+    paddingBottom: 24,
+    justifyContent: "space-between",
   },
   topRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 18,
+    alignItems: "center",
   },
-  heading: {
-    fontSize: 30,
-    marginBottom: 6,
-    fontWeight: "700",
-    marginTop: 40,
-  },
-  subheading: {
-    fontSize: 15,
-    lineHeight: 22,
-    maxWidth: 280,
-    fontFamily: "Itim_400Regular",
+  title: {
+    fontSize: 28,
+    fontWeight: "200",
+    letterSpacing: 0.5,
   },
   menuButton: {
     width: 42,
@@ -576,144 +638,101 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "rgba(255,255,255,0.08)",
   },
-  modeWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 16,
-    justifyContent: "center",
-  },
-  modeChip: {
-    borderRadius: 999,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-  },
-  modeChipText: {
+  modeLabel: {
     fontSize: 14,
     fontWeight: "600",
+    marginBottom: 4,
+    letterSpacing: 0.5,
   },
-  heroCard: {
-    minHeight: 470,
-    borderRadius: 28,
-    borderWidth: 1,
-    padding: 20,
+  timerDisplay: {
+    fontSize: 64,
+    fontWeight: "200",
+    letterSpacing: 2,
     marginBottom: 24,
   },
-  visualWrap: {
+  rulerWrap: {
+    marginBottom: 28,
     alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 22,
   },
-  centerVisual: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  absoluteCenter: {
-    position: "absolute",
-    alignItems: "center",
+  rulerWindow: {
+    height: 52,
+    overflow: "hidden",
+    alignItems: "flex-start",
     justifyContent: "center",
   },
-  visualLabelDark: {
-    color: "#666666",
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-  visualTimeDark: {
-    color: "#000000",
-    fontSize: 42,
-    fontWeight: "700",
-    letterSpacing: 2,
-  },
-  forestCardInner: {
-    width: 280,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 12,
-  },
-  visualLabelForest: {
-    color: "#3D5C48",
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-  visualTimeForest: {
-    color: "#163A24",
-    fontSize: 42,
-    fontWeight: "700",
-    letterSpacing: 2,
-    marginBottom: 10,
-  },
-  visualLabelOcean: {
-    color: "#4A6C80",
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-  visualTimeOcean: {
-    color: "#14344A",
-    fontSize: 42,
-    fontWeight: "700",
-    letterSpacing: 2,
-    marginBottom: 10,
-  },
-  timerButtonsRow: {
-    width: "100%",
+  rulerStrip: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
+    alignItems: "flex-end",
+    justifyContent: "flex-start",
+    height: 52,
+    paddingBottom: 6,
   },
-  primaryButton: {
+  rulerTickCell: {
+    alignItems: "center",
+    justifyContent: "flex-end",
+  },
+  rulerTickLine: {
+    borderRadius: 1,
+    marginBottom: 4,
+  },
+  rulerTickNumber: {
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+  },
+  rulerPresets: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 8,
+    paddingHorizontal: 12,
+  },
+  rulerPresetTouch: {
     flex: 1,
-    paddingVertical: 15,
-    borderRadius: 999,
     alignItems: "center",
-    justifyContent: "center",
+    paddingVertical: 6,
   },
-  primaryButtonText: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  secondaryButton: {
-    paddingVertical: 15,
-    paddingHorizontal: 18,
-    borderRadius: 999,
-    borderWidth: 1,
-    backgroundColor: "#FFFFFF",
-  },
-  secondaryButtonText: {
+  rulerPresetLabel: {
     fontSize: 14,
     fontWeight: "600",
   },
-  section: {
-    marginBottom: 24,
+  controlsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 20,
   },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    marginBottom: 10,
+  sideButton: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.06)",
   },
-  sectionDescription: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 10,
+  sideButtonLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: 4,
+    letterSpacing: 0.3,
   },
-  widgetHint: {
-    borderRadius: 22,
-    padding: 18,
-    borderWidth: 1,
+  playButton: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.12)",
   },
-  widgetTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    marginBottom: 8,
-  },
-  widgetText: {
-    fontSize: 14,
-    lineHeight: 21,
+  playButtonInner: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: "center",
+    justifyContent: "center",
   },
   modalOverlay: {
     flex: 1,
@@ -725,8 +744,10 @@ const styles = StyleSheet.create({
   },
   menuSheet: {
     width: 290,
+    backgroundColor: "#FFFFFF",
     borderRadius: 22,
     borderWidth: 1,
+    borderColor: "#EAEAEA",
     padding: 18,
   },
   menuTitle: {
@@ -734,6 +755,21 @@ const styles = StyleSheet.create({
     color: "#000000",
     marginBottom: 14,
     fontWeight: "600",
+  },
+  themesEntry: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+  themesEntryLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#000",
   },
   menuSectionTitle: {
     fontSize: 14,
@@ -779,5 +815,83 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 15,
     fontWeight: "700",
+  },
+  themesModalContainer: {
+    flex: 1,
+    backgroundColor: "#f8f8f8",
+    marginTop: 48,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+  },
+  themesModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 20,
+  },
+  themesModalTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#000",
+  },
+  themesModalClose: {
+    padding: 4,
+  },
+  themesGrid: {
+    paddingBottom: 24,
+  },
+  themesRow: {
+    justifyContent: "space-between",
+    marginBottom: THEME_CARD_GAP,
+  },
+  themeCard: {},
+  themeCardPreview: {
+    borderRadius: 16,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  themeCardPreviewContent: {
+    position: "absolute",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  themeCardTime: {
+    fontSize: 22,
+    fontWeight: "200",
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  themeCardPlayHint: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  themeCardFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+    paddingHorizontal: 4,
+  },
+  themeCardCrown: {
+    marginRight: 4,
+  },
+  themeCardName: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#000",
+  },
+  themeCardCheck: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#000",
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
